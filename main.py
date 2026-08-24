@@ -1,58 +1,78 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+#import necessary libraries
+from sqlalchemy import create_engine,Column,Integer,String
+from sqlalchemy.orm import sessionmaker,declarative_base,session
+from fastapi import FastAPI,Depends
 
 app = FastAPI()
 
-#pydantic model
-class student(BaseModel):
-    name: str
-    age: int
+#define the database url and create the engine
+database_url = "sqlite:///./test.db"
 
-#database
-students = []
+#create the engine with the database url and set check_same_thread to False
+engine = create_engine(database_url,connect_args={"check_same_thread":False})
 
-#post method to create a student
-@app.post("/students")
-def create_student(student: student):
-    students.append(student)
-    return {
-        "data": student
-    }
+#set up the sessionmaker with the engine
+SessionLocal = sessionmaker (bind=engine)
 
+#create the base class for the declarative model
+base = declarative_base()
 
-#get method to get all students
-@app.get("/students")
-def get_students(): 
-    return {
-        "data": students
-    }
+#define the User model with the necessary columns
+class User(base):
+    __tablename__ = "users"
+    id = Column(Integer,primary_key=True,index=True)
+    name = Column(String)
+    email = Column(String,unique=True,index=True)
+    password = Column(String)
 
-#get method to get a student by id
-@app.get("/students/{student_id}")
-def get_student(student_id: int):
-    for student in students:
-        if student["id"] == student_id:
-            return {
-                "data": students
-            }
+#create the tables in the database using the base metadata
+base.metadata.create_all(bind=engine)    
 
-#put method to update a student
-@app.put("/students/{student_id}")        
-def update_student(student_id: int, updated_student: student):
-    for student in students:
-        if student["id"] == student_id:
-            student["name"] = updated_student.name
-            student["age"] = updated_student.age
-            return {
-                "data": student
-            }
+#define a dependency to get the database session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-#delete method to delete a student    
-@app.delete("/students/{student_id}")
-def delete_student(student_id: int):
-    for student in students:
-        if student["id"]== student_id:
-            students.remove(student)
-            return {
-                "message": "Student deleted successfully"
-            }
+#create api endpoint to create a new user in the database
+@app.post("/users")
+def create_user(user: User, db: session = Depends(get_db)):
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+#read api endpoint to get a all users from the database
+@app.get("/users")
+def read_users(db: session = Depends(get_db)):
+    users = db.query(User).all()
+    return users
+
+#read api endpoint to get a user by id from the database
+@app.get("/users/{user_id}")
+def read_user(user_id: int, db: session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    return user
+
+#update api endpoint to update a user by id in the database
+@app.put("/users/{user_id}")
+def update_user(user_id: int, updated_user: User, db: session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.name = updated_user.name
+        user.email = updated_user.email
+        user.password = updated_user.password
+        db.commit()
+        db.refresh(user)
+    return user 
+
+#delete api endpoint to delete a user by id from the database
+@app.delete("/users/{user_id}") 
+def delete_user(user_id: int, db: session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        db.delete(user)
+        db.commit()
+    return {"message": "User deleted successfully"}
