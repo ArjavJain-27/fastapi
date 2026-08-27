@@ -13,6 +13,9 @@ def get_student(student_id:int):
 
    profile = database[student_id]
    return{
+      "id":profile[student_id],
       "name":profile["name"],
+      "age":profile["age"],
       "cgpa":profile["cgpa"]
+
    }
