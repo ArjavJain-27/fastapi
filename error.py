@@ -8,7 +8,7 @@ database={
     3:{"name":"yug","age":20,"cgpa":8}
 }
 
-@app.get("/students/{student_id}")
+@app.get("/error/{student_id}")
 def get_student(student_id:int):
     if student_id not in database:
         raise HTTPException(
